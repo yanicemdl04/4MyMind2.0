@@ -1,0 +1,223 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Enums ──────────────────────────────────────────────
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum MoodLevel {
+  VERY_LOW
+  LOW
+  NEUTRAL
+  GOOD
+  EXCELLENT
+}
+
+enum ExerciseCategory {
+  BREATHING
+  MEDITATION
+  JOURNALING
+  PHYSICAL
+  MINDFULNESS
+  CBT
+  RELAXATION
+}
+
+enum ExerciseDifficulty {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+}
+
+enum ContentType {
+  VIDEO
+  ARTICLE
+  EXERCISE
+  PODCAST
+  INFOGRAPHIC
+}
+
+enum ChatRole {
+  USER
+  ASSISTANT
+  SYSTEM
+}
+
+// ─── Models ─────────────────────────────────────────────
+
+model User {
+  id              String   @id @default(uuid())
+  email           String   @unique
+  password        String
+  firstName       String   @map("first_name")
+  lastName        String   @map("last_name")
+  role            Role     @default(USER)
+  avatarUrl       String?  @map("avatar_url")
+  refreshTokenHash String? @map("refresh_token_hash")
+  isActive        Boolean  @default(true) @map("is_active")
+  lastLoginAt     DateTime? @map("last_login_at")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  journalEntries JournalEntry[]
+  moods          Mood[]
+  exercises      UserExercise[]
+  chatMessages   ChatMessage[]
+  analyticsData  AnalyticsData[]
+
+  @@index([email])
+  @@index([role])
+  @@map("users")
+}
+
+model JournalEntry {
+  id        String    @id @default(uuid())
+  userId    String    @map("user_id")
+  title     String
+  content   String
+  tags      String[]  @default([])
+  sentiment Float?
+  isDeleted Boolean   @default(false) @map("is_deleted")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([userId, isDeleted])
+  @@map("journal_entries")
+}
+
+model Mood {
+  id        String    @id @default(uuid())
+  userId    String    @map("user_id")
+  level     MoodLevel
+  score     Int
+  note      String?
+  factors   String[]  @default([])
+  isDeleted Boolean   @default(false) @map("is_deleted")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([userId, isDeleted])
+  @@map("moods")
+}
+
+model Exercise {
+  id           String             @id @default(uuid())
+  title        String
+  description  String
+  category     ExerciseCategory
+  difficulty   ExerciseDifficulty
+  durationMin  Int                @map("duration_min")
+  instructions String[]           @default([])
+  imageUrl     String?            @map("image_url")
+  isActive     Boolean            @default(true) @map("is_active")
+  createdAt    DateTime           @default(now()) @map("created_at")
+  updatedAt    DateTime           @updatedAt @map("updated_at")
+
+  userExercises UserExercise[]
+
+  @@index([category])
+  @@index([difficulty])
+  @@index([isActive])
+  @@map("exercises")
+}
+
+model UserExercise {
+  id          String   @id @default(uuid())
+  userId      String   @map("user_id")
+  exerciseId  String   @map("exercise_id")
+  completedAt DateTime @default(now()) @map("completed_at")
+  durationMin Int?     @map("duration_min")
+  rating      Int?
+  notes       String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  exercise Exercise @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+
+  @@index([userId, completedAt])
+  @@index([exerciseId])
+  @@map("user_exercises")
+}
+
+model ChatMessage {
+  id             String   @id @default(uuid())
+  userId         String   @map("user_id")
+  conversationId String   @map("conversation_id")
+  role           ChatRole
+  content        String
+  metadata       Json?
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, conversationId])
+  @@index([conversationId, createdAt])
+  @@map("chat_messages")
+}
+
+model Content {
+  id           String      @id @default(uuid())
+  title        String
+  description  String
+  type         ContentType
+  url          String
+  thumbnailUrl String?     @map("thumbnail_url")
+  tags         String[]    @default([])
+  isActive     Boolean     @default(true) @map("is_active")
+  createdAt    DateTime    @default(now()) @map("created_at")
+  updatedAt    DateTime    @updatedAt @map("updated_at")
+
+  @@index([type])
+  @@index([isActive])
+  @@map("contents")
+}
+
+model Recommendation {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  contentId String?  @map("content_id")
+  type      String
+  title     String
+  reason    String
+  metadata  Json?
+  viewed    Boolean  @default(false)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([userId, viewed])
+  @@map("recommendations")
+}
+
+model AnalyticsData {
+  id             String   @id @default(uuid())
+  userId         String   @map("user_id")
+  wellbeingScore Float?   @map("wellbeing_score")
+  patterns       Json?
+  insights       String[] @default([])
+  periodStart    DateTime @map("period_start")
+  periodEnd      DateTime @map("period_end")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, periodStart, periodEnd])
+  @@map("analytics_data")
+}
